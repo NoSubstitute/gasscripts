@@ -1,0 +1,127 @@
+/*
+Autoprovisioning Error Log Flattener
+
+This script makes the error log from O365 SAML app easier to read.
+
+[Copy this Google Sheets workbook](https://docs.google.com/spreadsheets/d/1r956m33FlYLj9WQv66i8Fb_sz92LvPtC7zWknnhlMdo/copy) (template version of the script is included) and use on your own version the first page to paste your csv data
+The second page shows the output.
+
+Edit 2020 10 30:
+Problem identified is that object lenghts(used rows) vary, so instead of consuming data in blocks of 10
+we will use the error code in column B to signal begining and end of each block
+
+more complicated output interpretations could be built over each read code so that more actionable events
+are taken. or some breakdown of the information can also be automated, emails sent, data studio reports
+¡you name it! :p
+
+### Do note that none of the code in this script is created by me, Kim Nilsson (No Substitute)!
+
+*/
+function onOpen() {
+  SpreadsheetApp.getUi()
+  .createMenu("Hand Made Functions")
+  .addItem("Read Messy JSON", "process")
+  .addToUi();
+}
+
+function process() {
+  var this_gs_sheet = SpreadsheetApp.getActiveSpreadsheet()
+  var table_output = this_gs_sheet.getSheetByName("As Table");
+  var JSON_output = this_gs_sheet.getSheetByName("As JSON");
+  var sheet = this_gs_sheet.getSheetByName("Input");
+  var data = sheet.getDataRange().getValues();
+  var block_profile = measure_blocks(data);
+  //log_outliers(block_profile);
+  //log_first_three(block_profile);
+  var JSON_array = [];
+  var eval_start = 1;
+  //Each block measure is in this array, its length is the identified objects + 1 
+  for (var block_number = 1;block_number < block_profile.length ;block_number++) {
+    var block_size = block_profile[block_number];
+    var manually_assembled_obj = {};
+    for (var row = 0 ; row < block_size ; row++) {
+      if (row == 0) {
+        manually_assembled_obj.user_email = data[eval_start + row][0];
+        manually_assembled_obj.error_code = data[eval_start + row][1];
+        manually_assembled_obj.status_code = data[eval_start + row][2];
+      }else{
+        var misshappen_row_data = data[eval_start + row][0];
+        parse_broken_row(misshappen_row_data,manually_assembled_obj);
+      }
+    }
+    eval_start = eval_start + block_size;
+    //this time we have the objects already available in this array
+    JSON_array.push(manually_assembled_obj);
+  }
+  
+  //This prints the JSON in its output sheet
+  var stringified_array = [];
+  var sp_1 = 0;
+  while (sp_1 < JSON_array.length) {
+    stringified_array.push([JSON.stringify(JSON_array[sp_1])]);
+    sp_1++;
+  }
+  JSON_output.clear()
+  JSON_output.getRange(1,1).setValue("Stringified JSON");
+  JSON_output.getRange(2,1,stringified_array.length,1).setValues(stringified_array);
+  
+  //If new / different values arise this array can be adjusted to include them and order them
+  var header_order = [
+    "user_email",
+    "error_code",    
+    "status_code",
+    "date",
+    "code",
+    "message",
+    "request-id"
+  ];
+  //We set the headers as the first row of our print array
+  var print_array = [header_order];
+  
+  //this unpacks the object to a full table 
+  for (var m = 0 ; m < JSON_array.length ; m++){
+    var object = JSON_array[m];
+    var printable_row = [];
+    for (var n = 0;n < header_order.length ; n++){
+      if (object[header_order[n]] != undefined){
+        printable_row.push(object[header_order[n]]);
+      }else{
+        printable_row.push("");
+      };
+    };
+    print_array.push(printable_row);
+  };
+  //this prints the main output table
+  table_output.clear();
+  table_output.getRange(1,1,print_array.length,print_array[0].length).setValues(print_array);
+}
+
+function measure_blocks(data){
+  var block_start_array = [];
+  for (var i=1;i<data.length;i++) {
+    var row = data[i];
+    var row_code = row[1];
+    if (row_code != "") {
+      block_start_array.push(i);
+    };
+  };
+  var start_at = 0;
+  var block_size_array = [];
+  for (var j=0;j<block_start_array.length;j++) {
+    var position_of_code = block_start_array[j];
+    block_size_array.push(position_of_code - start_at);
+    start_at = position_of_code;
+  }
+  return block_size_array;
+}
+
+function parse_broken_row(pre_proc_row_string,manually_assembled_obj){
+  var split_row = pre_proc_row_string.split(":");
+  if (split_row.length == 2 &&
+      split_row[0].trim() != "{" && split_row[0].trim() != "}" &&
+      split_row[1].trim() != "{" && split_row[1].trim() != "}") {
+      manually_assembled_obj[split_row[0].trim()] = split_row[1].trim();
+    } else if (split_row[0].trim() == "date") {
+      manually_assembled_obj[split_row[0].trim()] = split_row[1] +":"+ split_row[2] +":"+ split_row[3];
+    };
+}
