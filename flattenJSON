@@ -3,7 +3,7 @@ Autoprovisioning Error Log Flattener
 
 This script makes the error log from O365 SAML app easier to read.
 
-Copy this Google Sheets workbook (template version of the script is included) and use on your own version the first page to paste your csv data
+Copy this Google Sheets workbook (template version of the script is included), and use on your own version the first page to paste your csv data
 https://docs.google.com/spreadsheets/d/1r956m33FlYLj9WQv66i8Fb_sz92LvPtC7zWknnhlMdo/copy
 
 The second page shows the output.
