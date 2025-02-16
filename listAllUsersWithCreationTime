@@ -1,0 +1,30 @@
+// The script idea is taken from here and adjusted a little, https://www.labnol.org/code/20494-spreadsheet-list-users-google-apps-domain
+// You need to read the instructions there as they are not all included here
+function getDomainUsersList() {
+  var users = [];
+  var options = {
+    domain: 'ctrlq.org', // Replace with yourGoogle Workspace domain name
+    customer: 'my_customer',
+    maxResults: 100,
+    projection: 'basic', // Fetch basic details of users
+    viewType: 'admin_view', // I changed this from domain_public because we needed creationTime which isn't public
+    orderBy: 'email', // Sort results by users
+  };
+
+  do {
+    var response = AdminDirectory.Users.list(options);
+    response.users.forEach(function (user) {
+      users.push([user.name.fullName, user.primaryEmail,user.creationTime]);
+    });
+
+    // For domains with many users, the results are paged
+    if (response.nextPageToken) {
+      options.pageToken = response.nextPageToken;
+    }
+  } while (response.nextPageToken);
+
+  // Insert data in a spreadsheet
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Users') || ss.insertSheet('Users', 1);
+  sheet.getRange(1, 1, users.length, users[0].length).setValues(users);
+}
